@@ -139,8 +139,9 @@ p{margin:0}
 .hero-media::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,26,51,0) 55%,rgba(7,26,51,.32));pointer-events:none}
 /* Video del héroe: encima de la foto, invisible en reposo; el scroll lo hace aparecer y avanzar */
 .hero-media video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%;opacity:0;transform:translateZ(0);pointer-events:none}
-@media (min-width:901px){.hero-media[data-video] img{object-position:50% 50%!important}}
-@media (max-width:900px),(orientation:portrait) and (max-width:1024px),(orientation:portrait) and (pointer:coarse),(orientation:landscape) and (pointer:coarse) and (max-height:560px),(prefers-reduced-motion:reduce){.hero-media video{display:none}}
+/* la foto del héroe con video es el primer cuadro exacto del video (cuadrado en escritorio, franja en celular) */
+.hero-media[data-video] img{object-position:50% 50%!important}
+@media (prefers-reduced-motion:reduce){.hero-media video{display:none}}
 .hero-media .tri{position:absolute;z-index:1;left:0;bottom:0;width:44%;height:48%;background:rgba(21,164,163,.5);clip-path:polygon(0 38%,100% 100%,0 100%);pointer-events:none}
 .claim{position:absolute;z-index:2;right:0;bottom:0;width:min(66%,440px);padding:60px 32px 28px 120px;background:var(--teal-700);clip-path:polygon(34% 0,100% 0,100% 100%,0 100%);color:#fff;font:600 .9rem/1.4 var(--head);letter-spacing:.08em;text-transform:uppercase;text-align:right}
 .claim b{display:block;font-weight:800}
@@ -160,6 +161,14 @@ p{margin:0}
   .hero-media{order:-1;min-height:0;height:min(30vh,250px);clip-path:polygon(0 0,100% 0,100% 100%,0 86%)}
   .hero-copy,.page-hero .hero-copy{padding:28px 24px 52px}
   .claim{width:74%;padding:26px 16px 18px 64px;font-size:.78rem}
+}
+/* celular: con el video listo y la página arriba, el héroe queda fijo bajo el encabezado durante --pin px de scroll
+   mientras avanza el video; el espacio de abajo se consume detrás del héroe, así que no queda ningún hueco.
+   La clase la pone site.js solo si el navegador conoce overflow:clip (con hidden, sticky no funcionaría). */
+@media (max-width:900px){
+  .hero.video-fijo{overflow:clip}
+  .hero.video-fijo .hero-grid{position:sticky;top:var(--header-h)}
+  .hero.video-fijo::after{content:"";display:block;height:var(--pin,260px)}
 }
 @media (max-width:560px){
   .topbar{display:none}

@@ -156,32 +156,51 @@
     }, { threshold: 0.5 }).observe(heroCta);
   }
 
-  /* ---------- Video del héroe controlado por el scroll (solo escritorio) ----------
+  /* ---------- Video del héroe controlado por el scroll ----------
      Se descarga como Blob después de cargar la página, avanza con el scroll y retrocede al subir.
-     Los cinco filtros deben coincidir con los de site.css. */
+     Hasta 900 px usa la versión liviana recortada a la franja de foto del celular (data-video-movil).
+     No se activa con movimiento reducido (igual que site.css) ni con ahorro de datos. */
   (function heroVideo() {
     var media = d.querySelector('.hero-media[data-video]');
     if (!media) return;
     var video = media.querySelector('video');
     var hero = media.closest('.hero') || media;
-    var GATES = [
-      '(max-width: 900px)',
-      '(orientation: portrait) and (max-width: 1024px)',
-      '(orientation: portrait) and (pointer: coarse)',
-      '(orientation: landscape) and (pointer: coarse) and (max-height: 560px)',
-      '(prefers-reduced-motion: reduce)'
-    ];
-    var MQLS = GATES.map(function (q) { return window.matchMedia(q); });
+    var reducida = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var franja = window.matchMedia('(max-width: 900px)');
     var saveData = !!(navigator.connection && navigator.connection.saveData);
-    var started = false, ready = false, active = false;
+    var started = false, ready = false, active = false, firstFrame = false, blobUrl = null, loadedSrc = '';
     var target = 0, shown = 0, rafId = null, lastTick = 0;
     var seekBusy = false, pendingTime = null, lastOp = -1;
+    var fijo = false, pin = 0;
+    var clip = !!(window.CSS && CSS.supports && CSS.supports('overflow', 'clip'));
 
-    function gated() { return saveData || MQLS.some(function (m) { return m.matches; }); }
+    function gated() { return saveData || reducida.matches; }
+    /* celular: el héroe queda fijo mientras avanza el video (ver .video-fijo en site.css) */
+    function fijar(on) {
+      if (on === fijo) return;
+      fijo = on;
+      if (on) {
+        pin = Math.round(Math.min(320, Math.max(220, window.innerHeight * 0.34)));
+        hero.style.setProperty('--pin', pin + 'px');
+      }
+      hero.classList.toggle('video-fijo', on);
+    }
+    function wantedSrc() { return (franja.matches && media.getAttribute('data-video-movil')) || media.getAttribute('data-video'); }
     function progress() {
-      /* el acercamiento ocurre mientras se recorre el 70 % del alto del héroe */
-      var span = Math.max(1, hero.offsetHeight * 0.7);
-      return Math.min(1, Math.max(0, window.scrollY / span));
+      var span;
+      if (franja.matches && fijo) {
+        /* celular con el héroe fijo: el video termina justo cuando el héroe se suelta */
+        span = pin;
+      } else if (franja.matches) {
+        /* celular sin fijar (el video llegó con la página ya desplazada): la franja de foto se va bajo
+           el encabezado al bajar; el acercamiento termina cuando todavía se ve un 15 % de ella */
+        var hb = header ? header.offsetHeight : 0;
+        span = (media.getBoundingClientRect().bottom + window.scrollY - hb) * 0.85;
+      } else {
+        /* escritorio: el acercamiento ocurre mientras se recorre el 70 % del alto del héroe */
+        span = hero.offsetHeight * 0.7;
+      }
+      return Math.min(1, Math.max(0, window.scrollY / Math.max(1, span)));
     }
     function requestSeek(t) {
       if (!video.duration) return;
@@ -191,14 +210,22 @@
     }
     video.addEventListener('seeked', function () {
       seekBusy = false;
+      /* el video se deja ver solo cuando ya dibujó un cuadro; antes se ve la foto */
+      if (ready && !firstFrame) {
+        firstFrame = true;
+        /* solo se fija si la persona sigue arriba de la página: así no se mueve nada de lo que ya está viendo */
+        if (franja.matches && clip && window.scrollY < 5) { fijar(true); shown = target = progress(); }
+        lastOp = -1;
+        setOpacity(shown);
+      }
       if (pendingTime !== null) { var t = pendingTime; pendingTime = null; requestSeek(t); }
     });
-    video.addEventListener('error', function () { seekBusy = false; pendingTime = null; ready = false; video.style.opacity = '0'; });
+    video.addEventListener('error', function () { seekBusy = false; pendingTime = null; ready = false; firstFrame = false; video.style.opacity = '0'; });
 
     function setOpacity(p) {
       /* en reposo se ve la foto nítida; el video aparece en el primer 4 % del recorrido */
       var t = Math.min(1, Math.max(0, p / 0.04));
-      var op = t * t * (3 - 2 * t);
+      var op = firstFrame ? t * t * (3 - 2 * t) : 0;
       if (Math.abs(op - lastOp) < 0.01 && !(op === 0 && lastOp !== 0) && !(op === 1 && lastOp !== 1)) return;
       lastOp = op;
       video.style.opacity = op.toFixed(3);
@@ -216,44 +243,70 @@
       target = progress();
       if (rafId === null) rafId = requestAnimationFrame(tick);
     }
+    function reset() {
+      fijar(false);
+      ready = false; firstFrame = false; started = false; seekBusy = false; pendingTime = null;
+      video.style.opacity = '0'; lastOp = 0;
+      if (blobUrl) { video.removeAttribute('src'); video.load(); URL.revokeObjectURL(blobUrl); blobUrl = null; }
+      loadedSrc = '';
+    }
     function load() {
-      if (started) return;
+      if (started || !active) return;
       started = true;
+      var src = wantedSrc();
       var ctrl = new AbortController();
       var watchdog = setTimeout(function () { ctrl.abort(); }, 20000);
-      fetch(media.getAttribute('data-video'), { signal: ctrl.signal, priority: 'low' })
+      fetch(src, { signal: ctrl.signal, priority: 'low' })
         .then(function (res) { if (!res.ok) throw new Error('video ' + res.status); return res.blob(); })
         .then(function (blob) {
           clearTimeout(watchdog);
-          video.src = URL.createObjectURL(blob);
+          /* si mientras bajaba se cambió entre celular y escritorio, se descarta */
+          if (src !== wantedSrc() || !active) { started = false; return; }
+          blobUrl = URL.createObjectURL(blob);
+          loadedSrc = src;
+          video.muted = true;
+          video.preload = 'auto';
+          video.src = blobUrl;
           video.load();
+          /* si el navegador no avisa que puede reproducir, una reproducción muda lo empuja a cargar */
+          var kick = setTimeout(function () { var q = video.play(); if (q && q.catch) q.catch(function () {}); }, 4000);
           video.addEventListener('canplay', function () {
-            ready = true;
-            shown = target = progress();
-            requestSeek(shown * video.duration);
-            setOpacity(shown);
+            clearTimeout(kick);
+            var go = function () {
+              ready = true;
+              shown = target = progress();
+              requestSeek(shown * video.duration);
+            };
+            /* iPhone: una reproducción mínima y sin sonido asegura que los cuadros se dibujen al buscar */
+            var pl = video.play();
+            if (pl && pl.then) pl.then(function () { video.pause(); go(); }, go);
+            else { video.pause(); go(); }
           }, { once: true });
         })
         .catch(function () { clearTimeout(watchdog); started = false; });
     }
+    function schedule() {
+      /* la descarga espera a que la página termine de cargar, para no competir con la foto */
+      var go = function () { (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(load); };
+      if (d.readyState === 'complete') go(); else window.addEventListener('load', go, { once: true });
+    }
     function apply() {
       var on = !gated();
-      if (on === active) return;
-      active = on;
-      if (on) {
-        window.addEventListener('scroll', onScroll, { passive: true });
-        /* la descarga espera a que la página termine de cargar, para no competir con la foto */
-        var go = function () { (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(load); };
-        if (d.readyState === 'complete') go(); else window.addEventListener('load', go, { once: true });
-        onScroll();
-      } else {
+      /* al pasar entre celular y escritorio (por ejemplo, al girar una tablet) se cambia de video */
+      if (loadedSrc && loadedSrc !== wantedSrc()) reset();
+      if (on && !active) window.addEventListener('scroll', onScroll, { passive: true });
+      if (!on && active) {
+        fijar(false);
         window.removeEventListener('scroll', onScroll);
         if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
         video.style.opacity = '0';
         lastOp = 0;
       }
+      active = on;
+      if (on) { if (!started) schedule(); onScroll(); }
     }
-    MQLS.forEach(function (m) { onMedia(m, apply); });
+    onMedia(reducida, apply);
+    onMedia(franja, apply);
     apply();
   })();
 
