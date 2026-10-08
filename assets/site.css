@@ -362,17 +362,7 @@ html:not(.js) .journey-panel{grid-row:auto;margin-top:18px}
 .comp header .ic{width:26px;height:26px}
 .comp ul{margin:0;padding:16px 16px 18px 32px;color:var(--muted);font-size:.93rem}
 .comp li+li{margin-top:6px}
-.stages{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.stage-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
-.stage-card header{display:flex;gap:14px;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line)}
-.stage-card header .num{flex:none}
-.stage-card header b{display:block;font:800 1.02rem/1.2 var(--head);color:var(--navy-700)}
-.stage-card header small{display:block;margin-top:2px;color:var(--muted);font-size:.86rem}
-.stage-card ol{margin:0;padding:14px 20px 20px;list-style:none;display:grid;gap:10px}
-.stage-card li{display:flex;gap:12px;align-items:center;color:var(--text)}
-.stage-card li span{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--sky-100);font:700 .8rem var(--head);color:var(--navy-700)}
 @media (max-width:1100px){.components{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:900px){.stages{grid-template-columns:1fr}}
 @media (max-width:640px){.components{grid-template-columns:1fr}}
 
 /* ---------- Metodología en chevrones, como en la presentación ----------
@@ -384,7 +374,7 @@ html.js .flow-hint{display:block}
 .flow-hint .h-fine{display:none}
 @media (hover:hover) and (pointer:fine){.flow-hint .h-fine{display:inline}.flow-hint .h-touch{display:none}}
 @media (max-width:1099px){.flow-hint .h-fine{display:none}.flow-hint .h-touch{display:inline}}
-.flow-steps{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.flow-steps{display:grid;grid-template-columns:repeat(var(--n,7),minmax(0,1fr))}
 .flow-step{display:contents}
 .flow-chev{grid-row:1;position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n ic" "t t";container-type:inline-size;align-content:space-between;gap:10px 8px;min-height:112px;margin:0 -16px 0 0;padding:20px 18px 20px 24px;border:0;background:var(--c);color:#fff;text-align:left;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;clip-path:polygon(0 0,calc(100% - 22px) 0,100% 50%,calc(100% - 22px) 100%,0 100%,22px 50%);transition:transform .3s var(--ease),filter .3s var(--ease)}
 .flow-step:first-child .flow-chev{padding-left:18px;clip-path:polygon(0 0,calc(100% - 22px) 0,100% 50%,calc(100% - 22px) 100%,0 100%)}
@@ -401,13 +391,17 @@ html.js .flow-step.is-open .flow-chev{transform:translateY(-6px)}
 .flow-chev:focus-visible{outline:none}
 .flow-chev:focus-visible .flow-t{outline:2px solid currentColor;outline-offset:2px;border-radius:3px}
 .flow-panel{grid-row:2;grid-column:1/-1;position:relative;margin-top:20px;padding:26px 30px 28px;background:#fff;border:1px solid var(--line);border-top:4px solid var(--c);border-radius:var(--radius);box-shadow:var(--shadow)}
-.flow-panel::before{content:"";position:absolute;top:-15px;left:calc((var(--i) - .5) / 7 * 100% + 8px);width:24px;height:11px;margin-left:-12px;background:var(--c);clip-path:polygon(50% 0,100% 100%,0 100%)}
-.flow-step:last-child .flow-panel::before{left:calc(6.5 / 7 * 100%)}
+.flow-panel::before{content:"";position:absolute;top:-15px;left:calc((var(--i) - .5) / var(--n,7) * 100% + 8px);width:24px;height:11px;margin-left:-12px;background:var(--c);clip-path:polygon(50% 0,100% 100%,0 100%)}
+.flow-step:last-child .flow-panel::before{left:calc((var(--n,7) - .5) / var(--n,7) * 100%)}
 .flow-panel h3{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;font:800 1.2rem/1.3 var(--head);color:var(--navy-700)}
 .flow-panel h3 span{color:var(--c)}
 .flow-panel ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 32px;margin:0;padding:0;list-style:none}
 .flow-panel li{position:relative;padding-left:22px;color:var(--text)}
 .flow-panel li::before{content:"";position:absolute;left:0;top:.55em;width:9px;height:9px;border-radius:50%;background:var(--c)}
+.flow-sub{margin:-8px 0 16px;color:var(--muted);font-size:.95rem}
+.flow-panel ul.flow-num li{display:flex;align-items:center;gap:12px;padding-left:0}
+.flow-panel ul.flow-num li::before{content:none}
+.flow-panel ul.flow-num .flow-k{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--sky-100);font:700 .8rem var(--head);color:var(--navy-700)}
 html.js .flow-panel{display:none}
 html.js .flow-step.is-open .flow-panel{display:block;animation:flow-in .3s var(--ease)}
 @keyframes flow-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
