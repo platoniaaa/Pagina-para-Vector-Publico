@@ -1,10 +1,9 @@
 /* Vector Público · comportamiento del sitio (v2)
-   Menú, submenú de servicios, entradas al hacer scroll, preguntas, pasos interactivos y formulario a WhatsApp. */
+   Menú, submenú de servicios, entradas al hacer scroll, preguntas, pasos interactivos, formulario por correo y carrusel de noticias. */
 (function () {
   'use strict';
 
   var d = document;
-  var WHATSAPP = '56964261751';
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   /* iPhone con iOS 13 o anterior solo conoce addListener en las consultas de medios */
   function onMedia(mql, fn) {
@@ -127,34 +126,159 @@
     });
   });
 
-  /* ---------- Formulario que abre WhatsApp ---------- */
-  var form = d.getElementById('wa-form');
+  /* ---------- Formulario de contacto que llega por correo (enviar.php) ----------
+     Valida en el navegador, envía con fetch y muestra el resultado sin salir de la página.
+     Sin JavaScript se envía igual y enviar.php responde con una página de confirmación. */
+  var form = d.getElementById('contact-form');
   if (form) {
+    /* con JavaScript la validación es la de abajo; sin JavaScript queda la del navegador (required, type=email) */
+    form.noValidate = true;
+    var opened = Date.now();
+    var status = form.querySelector('.status');
+    var submit = form.querySelector('button[type="submit"]');
+    var submitHtml = submit.innerHTML;
+    /* los botones de cada servicio llegan con ?tema=... y dejan ese tema elegido */
+    var tema = (window.location.search.match(/[?&]tema=([a-z-]+)/) || [])[1];
+    var temaSel = d.getElementById('f-tema');
+    if (tema && temaSel && temaSel.querySelector('option[value="' + tema + '"]')) temaSel.value = tema;
+    /* las mismas reglas que revisa enviar.php */
+    var rules = {
+      nombre: function (v) { return v.length >= 2 ? '' : 'Escribe tu nombre.'; },
+      correo: function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? '' : 'Revisa tu correo electrónico.'; },
+      telefono: function (v) {
+        var n = v.replace(/\D/g, '').length;
+        return /^[0-9+()\s.-]+$/.test(v) && n >= 8 && n <= 15 ? '' : 'Revisa tu teléfono o celular.';
+      },
+      mensaje: function (v) { return v.length >= 10 ? '' : 'Cuéntanos tu necesidad en al menos una frase.'; },
+      acepta: function (v, el) { return el.checked ? '' : 'Debes aceptar la política de privacidad.'; }
+    };
+    var setError = function (name, msg) {
+      var el = form.elements[name];
+      if (!el) return;
+      var box = el.closest('.field'), err = d.getElementById('e-' + name);
+      if (box) box.classList.toggle('invalid', !!msg);
+      el.setAttribute('aria-invalid', msg ? 'true' : 'false');
+      if (err) err.textContent = msg || '';
+    };
+    var check = function (name) {
+      var el = form.elements[name];
+      var msg = rules[name]((el.value || '').trim(), el);
+      setError(name, msg);
+      return msg;
+    };
+    var say = function (msg, kind) {
+      status.textContent = msg;
+      status.className = 'status' + (kind ? ' ' + kind : '');
+    };
+    Object.keys(rules).forEach(function (name) {
+      var el = form.elements[name];
+      /* el error aparece al salir de un campo con algo escrito y se borra apenas se corrige */
+      el.addEventListener(el.type === 'checkbox' ? 'change' : 'blur', function () {
+        if (el.type === 'checkbox' || el.value) check(name);
+      });
+      el.addEventListener('input', function () { if (el.getAttribute('aria-invalid') === 'true') check(name); });
+    });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var val = function (id) { var el = d.getElementById(id); return el ? (el.value || '').trim() : ''; };
-      var muni = val('f-muni'), cargo = val('f-cargo'), tema = val('f-tema'), msg = val('f-msg');
-      var text = 'Hola, quiero agendar un diagnóstico inicial.';
-      if (muni) text += ' Municipio: ' + muni + '.';
-      if (cargo) text += ' Cargo: ' + cargo + '.';
-      if (tema) text += ' Tema: ' + tema + '.';
-      if (msg) text += ' ' + msg;
-      var url = 'https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(text);
-      var status = form.querySelector('.status');
-      /* con 'noopener' window.open siempre devuelve null, así que se corta el vínculo a mano */
-      var win = window.open(url, '_blank');
-      if (win) { win.opener = null; } else { window.location.href = url; }
-      if (status) status.textContent = 'Listo, se abrió WhatsApp con tu mensaje.';
+      var first = null;
+      Object.keys(rules).forEach(function (name) { if (check(name) && !first) first = form.elements[name]; });
+      if (first) { say('Revisa los campos marcados.', 'error'); first.focus(); return; }
+      if (!window.fetch || !window.FormData) { form.submit(); return; }
+      submit.disabled = true;
+      submit.textContent = 'Enviando…';
+      say('');
+      /* enviar.php descarta como robot lo enviado con menos de 3 s de página abierta: si la página se recargó
+         con el formulario ya lleno, se espera lo que falte en vez de perder la consulta */
+      setTimeout(function () {
+        var data = new FormData(form);
+        data.append('t', String(Math.round((Date.now() - opened) / 1000)));
+        fetch(form.getAttribute('action'), { method: 'POST', body: data, headers: { Accept: 'application/json' } })
+          .then(function (res) { return res.json(); })
+          .then(function (r) {
+            if (r.ok) { form.reset(); say(r.message, 'ok'); return; }
+            var errs = r.errors || {};
+            Object.keys(errs).forEach(function (k) { setError(k, errs[k]); });
+            say(r.message || 'No pudimos enviar tu consulta.', 'error');
+          })
+          .catch(function () { say('No pudimos enviar tu consulta. Intenta de nuevo o escríbenos por WhatsApp.', 'error'); })
+          .then(function () { submit.disabled = false; submit.innerHTML = submitHtml; });
+      }, Math.max(0, 3200 - (Date.now() - opened)));
     });
   }
 
-  /* ---------- Botón flotante: se esconde mientras el botón principal está a la vista ---------- */
-  var heroCta = d.querySelector('.hero .actions .btn, .page-hero .actions .btn');
-  if (heroCta && 'IntersectionObserver' in window) {
-    new IntersectionObserver(function (entries) {
-      d.body.classList.toggle('cta-on-screen', entries[0].isIntersecting);
-    }, { threshold: 0.5 }).observe(heroCta);
-  }
+  /* ---------- Carrusel de actualidad normativa (fichas de servicio) ----------
+     Sin JavaScript es una fila que se desliza con el dedo o la barra. Con JavaScript suma flechas, puntos
+     y avance automático cada 7 s, que se detiene con el mouse encima, el foco o un toque adentro,
+     fuera de la pantalla, con la pestaña oculta y con movimiento reducido; el botón de pausa lo deja quieto. */
+  [].forEach.call(d.querySelectorAll('[data-carousel]'), function (root) {
+    var track = root.querySelector('.news-track');
+    var cards = [].slice.call(track.children);
+    var ctrl = root.querySelector('.news-ctrl');
+    var dotsBox = root.querySelector('.news-dots');
+    var pauseBtn = root.querySelector('.news-pause');
+    if (cards.length < 2 || !ctrl) return;
+    ctrl.hidden = false;
+    var hover = false, focused = false, stopped = reduce, visible = false, timer = null, dots = [], rafId = null;
+    var stepPx = function () { return cards[1].offsetLeft - cards[0].offsetLeft; };
+    /* posiciones posibles: con tres tarjetas a la vista, cinco noticias dan tres posiciones */
+    var last = function () { return Math.max(0, Math.round((track.scrollWidth - track.clientWidth) / stepPx())); };
+    var at = function () { return Math.min(last(), Math.round(track.scrollLeft / stepPx())); };
+    var go = function (i) {
+      var m = last();
+      i = i > m ? 0 : (i < 0 ? m : i);
+      track.scrollTo({ left: i * stepPx(), behavior: reduce ? 'auto' : 'smooth' });
+    };
+    var mark = function () {
+      var i = at();
+      dots.forEach(function (b, k) { b.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+    };
+    var buildDots = function () {
+      if (!dotsBox) return;
+      var n = last() + 1;
+      if (dots.length === n) { mark(); return; }
+      dotsBox.innerHTML = '';
+      dots = [];
+      for (var k = 0; k < n; k++) {
+        var li = d.createElement('li'), b = d.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'Ir a la posición ' + (k + 1) + ' de ' + n);
+        b.addEventListener('click', (function (k) { return function () { go(k); }; })(k));
+        li.appendChild(b);
+        dotsBox.appendChild(li);
+        dots.push(b);
+      }
+      dotsBox.hidden = n < 2;
+      mark();
+    };
+    var tick = function () { if (!stopped && !hover && !focused && visible && !d.hidden) go(at() + 1); };
+    var run = function () { clearInterval(timer); timer = stopped ? null : setInterval(tick, 7000); };
+    ctrl.querySelectorAll('.news-btn[data-dir]').forEach(function (b) {
+      b.addEventListener('click', function () { go(at() + Number(b.getAttribute('data-dir'))); run(); });
+    });
+    if (pauseBtn) {
+      /* la etiqueta no cambia: "presionado" significa pausado (patrón de botón alternable) */
+      var syncPause = function () { pauseBtn.setAttribute('aria-pressed', String(stopped)); };
+      pauseBtn.addEventListener('click', function () { stopped = !stopped; syncPause(); run(); });
+      syncPause();
+    }
+    track.addEventListener('scroll', function () {
+      if (rafId === null) rafId = requestAnimationFrame(function () { rafId = null; mark(); });
+    }, { passive: true });
+    /* el mouse y el foco detienen el avance por separado; un toque no cuenta como mouse encima
+       y el foco en el botón de pausa tampoco, para que "reanudar" reanude de verdad */
+    root.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') hover = true; });
+    root.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') hover = false; });
+    root.addEventListener('focusin', function (e) { focused = !(pauseBtn && pauseBtn.contains(e.target)); });
+    root.addEventListener('focusout', function (e) { if (!root.contains(e.relatedTarget)) focused = false; });
+    /* un toque en el carrusel cuenta como interés: deja de avanzar solo */
+    track.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'mouse') { stopped = true; if (pauseBtn) syncPause(); run(); } }, { passive: true });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }, { threshold: 0.35 }).observe(track);
+    } else visible = true;
+    window.addEventListener('resize', buildDots);
+    buildDots();
+    run();
+  });
 
   /* ---------- Video del héroe controlado por el scroll ----------
      Se descarga como Blob después de cargar la página, avanza con el scroll y retrocede al subir.
