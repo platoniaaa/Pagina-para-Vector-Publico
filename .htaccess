@@ -1,0 +1,40 @@
+# Vector Público · reglas del servidor (Apache del hosting cPanel)
+# Subir junto con el sitio solo cuando el certificado SSL de vpublico.cl ya sea válido (AutoSSL en verde):
+# estas reglas mandan todo a https://www.vpublico.cl, la dirección canónica de las páginas.
+
+RewriteEngine On
+
+# vpublico.cl (sin www) pasa a https://www.vpublico.cl
+# /.well-known queda fuera: lo usa AutoSSL para validar y renovar el certificado
+RewriteCond %{HTTP_HOST} ^vpublico\.cl$ [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^ https://www.vpublico.cl%{REQUEST_URI} [L,R=301]
+
+# www.vpublico.cl sin cifrar pasa a https
+RewriteCond %{HTTP_HOST} ^www\.vpublico\.cl$ [NC]
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^ https://www.vpublico.cl%{REQUEST_URI} [L,R=301]
+
+# el navegador recuerda usar siempre https (sin includeSubDomains: mail.vpublico.cl y webmail no se tocan)
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# textos comprimidos al enviarlos
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript image/svg+xml application/xml text/xml
+</IfModule>
+
+# fuentes e imágenes cambian poco; el HTML, el CSS y el JS se revisan en cada visita para que los cambios se vean al tiro
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType video/mp4 "access plus 30 days"
+</IfModule>
