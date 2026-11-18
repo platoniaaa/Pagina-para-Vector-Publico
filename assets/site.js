@@ -1,5 +1,5 @@
 /* Vector Público · comportamiento del sitio (v2)
-   Menú, submenú de servicios, entradas al hacer scroll, preguntas, pasos interactivos, formulario por correo y carrusel de noticias. */
+   Menú, submenú de servicios, entradas al hacer scroll, preguntas, pasos interactivos, formulario por correo y noticias en el encabezado. */
 (function () {
   'use strict';
 
@@ -206,77 +206,66 @@
     });
   }
 
-  /* ---------- Carrusel de actualidad normativa (fichas de servicio) ----------
-     Sin JavaScript es una fila que se desliza con el dedo o la barra. Con JavaScript suma flechas, puntos
-     y avance automático cada 7 s, que se detiene con el mouse encima, el foco o un toque adentro,
-     fuera de la pantalla, con la pestaña oculta y con movimiento reducido; el botón de pausa lo deja quieto. */
-  [].forEach.call(d.querySelectorAll('[data-carousel]'), function (root) {
-    var track = root.querySelector('.news-track');
-    var cards = [].slice.call(track.children);
-    var ctrl = root.querySelector('.news-ctrl');
-    var dotsBox = root.querySelector('.news-dots');
-    var pauseBtn = root.querySelector('.news-pause');
-    if (cards.length < 2 || !ctrl) return;
+  /* ---------- Noticias en el encabezado de cada ficha de servicio ----------
+     Reemplazan la foto principal y avanzan solas hacia el lado cada 6 s; también con los puntos o deslizando el dedo.
+     El avance se detiene con el mouse encima o el foco adentro, fuera de la pantalla, con la pestaña oculta
+     y con movimiento reducido; el botón de pausa lo deja quieto. Sin JavaScript se ve la primera noticia. */
+  [].forEach.call(d.querySelectorAll('[data-hero-news]'), function (root) {
+    var track = root.querySelector('.hn-track');
+    var slides = [].slice.call(track.children);
+    var ctrl = root.querySelector('.hn-ctrl');
+    var dotsBox = root.querySelector('.hn-dots');
+    var pauseBtn = root.querySelector('.hn-pause');
+    if (slides.length < 2 || !ctrl) return;
     ctrl.hidden = false;
-    var hover = false, focused = false, stopped = reduce, visible = false, timer = null, dots = [], rafId = null;
-    var stepPx = function () { return cards[1].offsetLeft - cards[0].offsetLeft; };
-    /* posiciones posibles: con tres tarjetas a la vista, cinco noticias dan tres posiciones */
-    var last = function () { return Math.max(0, Math.round((track.scrollWidth - track.clientWidth) / stepPx())); };
-    var at = function () { return Math.min(last(), Math.round(track.scrollLeft / stepPx())); };
-    var go = function (i) {
-      var m = last();
-      i = i > m ? 0 : (i < 0 ? m : i);
-      track.scrollTo({ left: i * stepPx(), behavior: reduce ? 'auto' : 'smooth' });
+    var cur = 0, hover = false, focused = false, stopped = reduce, visible = true, timer = null;
+    /* las fotos que no están a la vista no cargan solas (quedan fuera del recuadro): se piden al mostrarse y la siguiente, antes */
+    var load = function (s) { var img = s.querySelector('img'); if (img && img.loading !== 'eager') img.loading = 'eager'; };
+    var show = function (i) {
+      cur = (i + slides.length) % slides.length;
+      track.style.transform = 'translateX(' + (-100 * cur) + '%)';
+      slides.forEach(function (s, k) {
+        var on = k === cur, a = s.querySelector('a');
+        s.setAttribute('aria-hidden', on ? 'false' : 'true');
+        if (a) { if (on) a.removeAttribute('tabindex'); else a.setAttribute('tabindex', '-1'); }
+        dots[k].setAttribute('aria-current', on ? 'true' : 'false');
+      });
+      load(slides[cur]);
+      load(slides[(cur + 1) % slides.length]);
     };
-    var mark = function () {
-      var i = at();
-      dots.forEach(function (b, k) { b.setAttribute('aria-current', k === i ? 'true' : 'false'); });
-    };
-    var buildDots = function () {
-      if (!dotsBox) return;
-      var n = last() + 1;
-      if (dots.length === n) { mark(); return; }
-      dotsBox.innerHTML = '';
-      dots = [];
-      for (var k = 0; k < n; k++) {
-        var li = d.createElement('li'), b = d.createElement('button');
-        b.type = 'button';
-        b.setAttribute('aria-label', 'Ir a la posición ' + (k + 1) + ' de ' + n);
-        b.addEventListener('click', (function (k) { return function () { go(k); }; })(k));
-        li.appendChild(b);
-        dotsBox.appendChild(li);
-        dots.push(b);
-      }
-      dotsBox.hidden = n < 2;
-      mark();
-    };
-    var tick = function () { if (!stopped && !hover && !focused && visible && !d.hidden) go(at() + 1); };
-    var run = function () { clearInterval(timer); timer = stopped ? null : setInterval(tick, 7000); };
-    ctrl.querySelectorAll('.news-btn[data-dir]').forEach(function (b) {
-      b.addEventListener('click', function () { go(at() + Number(b.getAttribute('data-dir'))); run(); });
+    var dots = slides.map(function (s, k) {
+      var li = d.createElement('li'), b = d.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Noticia ' + (k + 1) + ' de ' + slides.length);
+      b.addEventListener('click', function () { show(k); run(); });
+      li.appendChild(b);
+      dotsBox.appendChild(li);
+      return b;
     });
-    if (pauseBtn) {
-      /* la etiqueta no cambia: "presionado" significa pausado (patrón de botón alternable) */
-      var syncPause = function () { pauseBtn.setAttribute('aria-pressed', String(stopped)); };
-      pauseBtn.addEventListener('click', function () { stopped = !stopped; syncPause(); run(); });
-      syncPause();
-    }
-    track.addEventListener('scroll', function () {
-      if (rafId === null) rafId = requestAnimationFrame(function () { rafId = null; mark(); });
-    }, { passive: true });
-    /* el mouse y el foco detienen el avance por separado; un toque no cuenta como mouse encima
-       y el foco en el botón de pausa tampoco, para que "reanudar" reanude de verdad */
+    var run = function () {
+      clearInterval(timer);
+      timer = stopped ? null : setInterval(function () { if (!hover && !focused && visible && !d.hidden) show(cur + 1); }, 6000);
+    };
+    /* la etiqueta no cambia: "presionado" significa pausado (patrón de botón alternable) */
+    pauseBtn.setAttribute('aria-pressed', String(stopped));
+    pauseBtn.addEventListener('click', function () { stopped = !stopped; pauseBtn.setAttribute('aria-pressed', String(stopped)); run(); });
+    /* el mouse y el foco detienen el avance por separado; el foco en el botón de pausa no cuenta */
     root.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') hover = true; });
     root.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') hover = false; });
-    root.addEventListener('focusin', function (e) { focused = !(pauseBtn && pauseBtn.contains(e.target)); });
+    root.addEventListener('focusin', function (e) { focused = !pauseBtn.contains(e.target); });
     root.addEventListener('focusout', function (e) { if (!root.contains(e.relatedTarget)) focused = false; });
-    /* un toque en el carrusel cuenta como interés: deja de avanzar solo */
-    track.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'mouse') { stopped = true; if (pauseBtn) syncPause(); run(); } }, { passive: true });
+    var x0 = null;
+    root.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    root.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0;
+      x0 = null;
+      if (Math.abs(dx) > 40) { show(cur + (dx < 0 ? 1 : -1)); run(); }
+    }, { passive: true });
     if ('IntersectionObserver' in window) {
-      new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }, { threshold: 0.35 }).observe(track);
-    } else visible = true;
-    window.addEventListener('resize', buildDots);
-    buildDots();
+      new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }, { threshold: 0.2 }).observe(root);
+    }
+    show(0);
     run();
   });
 
