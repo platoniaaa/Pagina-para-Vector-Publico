@@ -207,7 +207,8 @@
   }
 
   /* ---------- Noticias en el encabezado de cada ficha de servicio ----------
-     Reemplazan la foto principal y avanzan solas hacia el lado cada 6 s; también con los puntos o deslizando el dedo.
+     Reemplazan la foto principal y avanzan solas hacia el lado cada 5 s. También se pasan a mano: arrastrando
+     (mouse, dedo o lápiz), con la rueda o el panel táctil en horizontal, con las flechas, con los puntos o con el teclado.
      El avance se detiene con el mouse encima o el foco adentro, fuera de la pantalla, con la pestaña oculta
      y con movimiento reducido; el botón de pausa lo deja quieto. Sin JavaScript se ve la primera noticia. */
   [].forEach.call(d.querySelectorAll('[data-hero-news]'), function (root) {
@@ -244,24 +245,76 @@
     });
     var run = function () {
       clearInterval(timer);
-      timer = stopped ? null : setInterval(function () { if (!hover && !focused && visible && !d.hidden) show(cur + 1); }, 6000);
+      timer = stopped ? null : setInterval(function () { if (!hover && !focused && visible && !d.hidden) show(cur + 1); }, 5000);
     };
     /* la etiqueta no cambia: "presionado" significa pausado (patrón de botón alternable) */
     pauseBtn.setAttribute('aria-pressed', String(stopped));
     pauseBtn.addEventListener('click', function () { stopped = !stopped; pauseBtn.setAttribute('aria-pressed', String(stopped)); run(); });
-    /* el mouse y el foco detienen el avance por separado; el foco en el botón de pausa no cuenta */
+    [].forEach.call(ctrl.querySelectorAll('.hn-nav'), function (b) {
+      b.addEventListener('click', function () { show(cur + Number(b.getAttribute('data-dir'))); run(); });
+    });
+    /* el mouse y el foco detienen el avance por separado; el foco en los botones de control no cuenta */
     root.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse') hover = true; });
     root.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') hover = false; });
-    root.addEventListener('focusin', function (e) { focused = !pauseBtn.contains(e.target); });
+    root.addEventListener('focusin', function (e) { focused = !ctrl.contains(e.target); });
     root.addEventListener('focusout', function (e) { if (!root.contains(e.relatedTarget)) focused = false; });
-    var x0 = null;
-    root.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
-    root.addEventListener('touchend', function (e) {
-      if (x0 === null) return;
-      var dx = e.changedTouches[0].clientX - x0;
-      x0 = null;
-      if (Math.abs(dx) > 40) { show(cur + (dx < 0 ? 1 : -1)); run(); }
-    }, { passive: true });
+
+    /* arrastre: la noticia sigue al dedo o al mouse y, al soltar, se queda en la siguiente o en la anterior
+       si se movió más del 18 % del ancho o fue un gesto rápido; si no, vuelve a su lugar.
+       En pantallas táctiles el movimiento vertical sigue siendo de la página (touch-action en site.css) */
+    var sx = null, dx = 0, moved = false, t0 = 0, justDragged = false;
+    track.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      sx = e.clientX; dx = 0; moved = false; t0 = performance.now();
+    });
+    track.addEventListener('pointermove', function (e) {
+      if (sx === null) return;
+      dx = e.clientX - sx;
+      if (!moved && Math.abs(dx) > 8) {
+        moved = true;
+        /* se captura el puntero recién al empezar a arrastrar: un clic simple sigue abriendo la fuente */
+        try { track.setPointerCapture(e.pointerId); } catch (err) {}
+        track.classList.add('hn-drag');
+      }
+      if (moved) track.style.transform = 'translateX(calc(' + (-100 * cur) + '% + ' + dx + 'px))';
+    });
+    var endDrag = function () {
+      if (sx === null) return;
+      var moveX = dx, fast = Math.abs(dx) / Math.max(1, performance.now() - t0) > 0.35;
+      sx = null;
+      if (!moved) return;
+      track.classList.remove('hn-drag');
+      /* lo que se arrastró no cuenta como clic en el enlace de la noticia */
+      justDragged = true;
+      setTimeout(function () { justDragged = false; }, 80);
+      var change = Math.abs(moveX) > (root.clientWidth || 1) * 0.18 || (fast && Math.abs(moveX) > 24);
+      show(Math.max(0, Math.min(slides.length - 1, cur + (change ? (moveX < 0 ? 1 : -1) : 0))));
+      run();
+    };
+    track.addEventListener('pointerup', endDrag);
+    track.addEventListener('pointercancel', endDrag);
+    /* sin esto, arrastrar desde el enlace o la foto inicia el arrastre nativo del navegador */
+    track.addEventListener('dragstart', function (e) { e.preventDefault(); });
+    root.addEventListener('click', function (e) { if (justDragged) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+    /* panel táctil o rueda con desplazamiento horizontal: una noticia por gesto */
+    var wheelLock = false;
+    root.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || Math.abs(e.deltaX) < 12) return;
+      e.preventDefault();
+      if (wheelLock) return;
+      wheelLock = true;
+      setTimeout(function () { wheelLock = false; }, 700);
+      show(cur + (e.deltaX > 0 ? 1 : -1));
+      run();
+    }, { passive: false });
+    /* teclado: flechas izquierda y derecha con el foco dentro del carrusel */
+    root.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      show(cur + (e.key === 'ArrowRight' ? 1 : -1));
+      run();
+    });
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (en) { visible = en[0].isIntersecting; }, { threshold: 0.2 }).observe(root);
     }
