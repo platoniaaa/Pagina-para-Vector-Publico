@@ -117,17 +117,16 @@
 <div class="actions"><a class="btn" href="contacto.html#formulario"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-calendar"/></svg>Agenda un diagnóstico</a><a class="btn btn-outline-light" href="https://wa.me/56964261751?text=Hola%2C%20quiero%20agendar%20un%20diagn%C3%B3stico%20inicial%20para%20mi%20municipio." target="_blank" rel="noopener"><svg class="ic fill" aria-hidden="true" focusable="false"><use href="#i-whatsapp"/></svg>Escribir por WhatsApp</a></div>
 </div>
 </section>
-<!-- SELLO PROVEEDOR DEL ESTADO: oculto (atributo hidden) hasta que Vector Público quede inscrito y hábil en el Registro de Proveedores de ChileCompra.
-     Para activarlo:
-     1. Reemplazar RUT-DE-VECTOR-PUBLICO en el enlace por el RUT con puntos y guion (ej. 76.123.456-K). La ficha pública muestra el estado de habilidad en vivo.
-     2. Opcional: con el certificado de habilidad, completar el N° de folio y la fecha en la línea "Certificado" y quitarle el atributo hidden.
-     3. Quitar el atributo hidden de la sección.
+<!-- SELLO PROVEEDOR DEL ESTADO: visible. Falta el botón "Verificar en Mercado Público", que necesita el RUT de Vector Público.
+     Para agregarlo: reemplazar RUT-DE-VECTOR-PUBLICO por el RUT con puntos y guion (ej. 76.123.456-K) y quitar los marcadores
+     de comentario del botón de abajo. El enlace lleva a la ficha pública, que muestra el estado de habilidad en vivo.
+     Opcional: con el certificado de habilidad, completar el N° de folio y la fecha en la línea oculta y quitarle el atributo hidden.
      ChileCompra no entrega un sello ni un logo oficial para proveedores: no usar el logo de Mercado Público sin autorización escrita de ChileCompra. -->
-<section class="seal-band" aria-labelledby="seal-t" hidden>
+<section class="seal-band" aria-labelledby="seal-t">
 <div class="wrap seal">
 <span class="ic-wrap" style="margin:0"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-doccheck"/></svg></span>
 <div class="seal-text"><b id="seal-t">Proveedor del Estado</b><small>Inscritos en el Registro de Proveedores del Estado de la Dirección ChileCompra (Mercado Público).</small><small hidden>Certificado de habilidad N° de folio FOLIO, emitido el FECHA.</small></div>
-<a class="btn btn-ghost" href="https://proveedor.mercadopublico.cl/ficha/RUT-DE-VECTOR-PUBLICO" target="_blank" rel="noopener">Verificar en Mercado Público<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>
+<!-- <a class="btn btn-ghost" href="https://proveedor.mercadopublico.cl/ficha/RUT-DE-VECTOR-PUBLICO" target="_blank" rel="noopener">Verificar en Mercado Público<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a> -->
 </div>
 </section>
 </main>
