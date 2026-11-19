@@ -12,7 +12,7 @@ const DESTINO   = 'contacto@vpublico.cl';  /* casilla que recibe las consultas *
 const REMITENTE = 'contacto@vpublico.cl';  /* debe ser una casilla del dominio para pasar SPF y DKIM */
 const NOMBRE_REMITENTE = 'Sitio web Vector Público';
 const MAX_POR_HORA = 5;                     /* envíos por IP y hora */
-const WHATSAPP = 'https://wa.me/56964261751';
+const WHATSAPP = 'https://wa.me/56995372764';
 
 $TEMAS = [
   'diagnostico-general'       => 'Diagnóstico general',
